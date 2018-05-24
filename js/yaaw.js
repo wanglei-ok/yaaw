@@ -499,7 +499,7 @@ var YAAW = (function() {
     add_task: {
       submit: function(_this) {
         var uri = $("#uri-input").val() || $("#uri-textarea").val() && $("#uri-textarea").val().split("\n") ;
-        var options = {}, options_save = {};
+        var options = {}, options_save = YAAW.setting.add_task_option;
         $("#add-task-option input[name], #add-task-option textarea[name]").each(function(i, n) {
           var name = n.getAttribute("name");
           var value = (n.type == "checkbox" ? n.checked : n.value);
@@ -511,6 +511,11 @@ var YAAW = (function() {
           }
         });
 
+		options['header'] = $("#ati-header").val().split('\n');
+		if($("#ati-header").hasClass("input-save")){
+			options_save['header'] = $("#ati-header").val();
+		}
+
         if (uri) {
           ARIA2.madd_task(uri, options);
           YAAW.setting.save_add_task_option(options_save);
@@ -521,6 +526,7 @@ var YAAW = (function() {
             ARIA2.add_torrent(torrent_file, options);
           }
           YAAW.setting.save_add_task_option(options_save);
+		  $("#add-task-option-wrap").empty().append(YAAW.tpl.add_task_option(options_save));
         }
       },
 
@@ -815,7 +821,7 @@ var YAAW = (function() {
 
     setting: {
       init: function() {
-        this.jsonrpc_path = $.Storage.get("jsonrpc_path") || location.protocol+"//"+(location.host.split(":")[0]||"localhost")+":6800"+"/jsonrpc";
+        this.jsonrpc_path = $.Storage.get("jsonrpc_path") || "http://localhost:6800/jsonrpc";
         this.refresh_interval = Number($.Storage.get("refresh_interval") || 10000);
         this.finish_notification = Number($.Storage.get("finish_notification") || 1);
         this.add_task_option = $.Storage.get("add_task_option");
@@ -941,3 +947,30 @@ var YAAW = (function() {
   }
 })();
 YAAW.init();
+if(chrome && chrome.extension){
+    chrome.tabs.getCurrent(function(curTab){
+        chrome.tabs.query({url:location.toString()},function(tabs){
+            console.info(curTab);
+            for(idx in tabs){
+                tab = tabs[idx];
+                if(tab.id != curTab.id){
+                    console.info(tab);
+                    chrome.tabs.update(tab.id, {active: true} , function(){
+                        chrome.tabs.remove(curTab.id);
+                    });
+                    return;
+                } 
+            }
+        });
+    });
+    $(function(){
+        chrome.extension.onMessage.addListener(function(msg){
+            msg.prototype = YAAW.setting.add_task_option
+            msg.options.header = msg.options.headers.join("\n");
+            $("#add-task-option-wrap").empty().append(YAAW.tpl.add_task_option(msg.options));
+            $("#ati-header").removeClass("input-save");
+            $("#uri-input").val(msg.uri);
+            $("#add-task-btn").click();
+        });
+    });
+}
